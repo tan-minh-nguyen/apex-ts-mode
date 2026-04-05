@@ -1,8 +1,25 @@
-;;; apex-dap.el --- configuration Debug adapter protocol for Apex mode -*- lexical-binding: t -*-
-;; Version: 1.0
-;; Package-Requires: ((dape "0.25.0"))
+;;; apex-dap.el --- Debug adapter for Apex -*- lexical-binding: t -*-
 
-(require 'dape)
+;; Copyright (C) 2024-2026 Tan Nguyen
+
+;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Maintainer: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "29.1") (dape "0.25.0"))
+;; Keywords: languages, apex, salesforce, debug
+;; Homepage: https://github.com/tan-minh-nguyen/apex-ts-mode
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; STATUS: Work in Progress (WIP)
+;; This extension is under development and not yet fully functional.
+
+;;; Commentary:
+
+;; Debug adapter protocol support for Apex using dape.
+;; Requires dape package to be installed.
+
+;;; Code:
 
 (defcustom apex-dap-replay-debugger-server nil
   "Path to replay debugger server for Apex mode."
@@ -19,6 +36,8 @@
 (defun apex-dap-start-replay-debugger ()
   "Start Replay Debugger for Apex mode."
   (interactive)
+  (unless (featurep 'dape)
+    (user-error "apex-dap requires dape package"))
   (setq-local apex-dap-log-file (read-file-name "File:")
               apex-dap-workspace (projectile-project-root))
   (call-interactively #'dape))
@@ -40,10 +59,6 @@
                              :trace t
                              :languages ["apex"]
                              :lineBreakpointInfo [])))
-
-;; (with-eval-after-load 'dape
-;;   (apex-dap-initialize))
-;; (define-key apex-log-ts-mode-map "M-d" #'apex-dap-start-replay-debugger)
 
 (provide 'apex-dap)
 ;;; apex-dap.el ends here

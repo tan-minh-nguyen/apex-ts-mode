@@ -1,32 +1,20 @@
-;;; apex-ts-mode.el --- tree-sitter support for Apex -*- lexical-binding: t -*-
+;;; apex-ts-mode.el --- Tree-sitter major mode for Salesforce Apex -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2024-2026 Tan Nguyen
 
-;; Author     : Tan Nguyen
-;; Maintainer : Tan Nguyen
-;; Created    : January 2024
-;; Keywords   : apex languages tree-sitter
+;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Maintainer: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Version: 1.0.0
+;; Package-Requires: ((emacs "29.1"))
+;; Keywords: languages, apex, salesforce, tree-sitter
+;; Homepage: https://github.com/tan-minh-nguyen/apex-ts-mode
 
-;; This file is part of GNU Emacs.
-
-;; GNU Emacs is free software: you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation, either version 3 of the License, or
-;; (at your option) any later version.
-
-;; GNU Emacs is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
-;;
 
-
-;;SOQL highlight syxtax base on https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_typos.htm
+;; Tree-sitter based major mode for Salesforce Apex.
+;; Requires tree-sitter grammar: https://github.com/aheber/tree-sitter-sfapex
 
 ;;; Code:
 
@@ -34,13 +22,6 @@
 (eval-when-compile (require 'rx))
 (require 'c-ts-common) ; For comment indent and filling.
 (require 'cl-macs)
-
-;; Optional extensions (loaded from extensions/ if available)
-(require 'apex-language-server nil t)
-(when (require 'treesit-fold nil t)
-  (require 'apex-fold nil t))
-(when (require 'dape nil t)
-  (require 'apex-dap nil t))
 
 (declare-function treesit-parser-create "treesit.c")
 (declare-function treesit-induce-sparse-tree "treesit.c")
@@ -55,6 +36,28 @@
   :type 'integer
   :safe 'integerp
   :group 'apex)
+
+;;; Eglot Integration
+
+(defcustom apex-ts-mode-lsp-path nil
+  "Path to Apex LSP JAR file."
+  :type 'string
+  :group 'apex)
+
+(defcustom apex-ts-mode-eglot-config '(:initializationOptions (:enableEmbeddedSoqlCompletion t))
+  "Eglot initialization options for Apex LSP."
+  :type 'list
+  :group 'apex)
+
+(defun apex-ts-mode--lsp-command ()
+  "Generate command to run Apex language server."
+  `("java" "-cp" ,(expand-file-name apex-ts-mode-lsp-path) "apex.jorje.lsp.ApexLanguageServerLauncher"))
+
+(defun apex-ts-mode-eglot-setup ()
+  "Configure eglot for `apex-ts-mode'."
+  (add-to-list 'eglot-server-programs
+               (cons 'apex-ts-mode `(,@(apex-ts-mode--lsp-command)
+                                     ,@apex-ts-mode-eglot-config))))
 
 ;; Settings custom faces for `apex-ts-mode'
 (defface font-lock-apex-error
@@ -378,12 +381,6 @@ Return nil if there is no name or if NODE is not a defun node."
           (t
            (treesit-node-child-by-field-name node (car path-splited))))))
 
-(defun apex-ts-mode--soql-embeded ()
-  "Setup completion for embedded SOQL/SOSL statements.
-Works with Eglot by adding SOQL completion before Eglot's CAPF."
-  (when (require 'apex-soql-capf nil t)
-    (apex-soql-capf-setup)))
-
 (defun apex-ts-mode-p ()
   "Check current context is apex."
   (eq major-mode 'apex-ts-mode))
@@ -556,11 +553,6 @@ This handles statements like 'return prop;' inside get/set blocks."
   `(lambda (cand) 
      (goto-char (plist-get cand :marker))))
 
-;;; Yasnippet
-(with-eval-after-load 'yasnippet
-  (require 'apex-ts-mode-yasnippet)
-  (apex-ts-mode-yasnippet-initialize))
-
 (with-eval-after-load 'tempel
   (require 'apex-ts-mode-tempel)
   (apex-ts-mode-tempel-initialize))
@@ -570,8 +562,6 @@ This handles statements like 'return prop;' inside get/set blocks."
   (add-to-list 'org-babel-load-languages '("apex" . t)))
 
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
-
-(add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
 
 (when (functionp 'derived-mode-add-parents)
   (derived-mode-add-parents 'apex-ts-mode '(apex-mode)))

@@ -12,7 +12,6 @@ Tree-sitter based major mode for Salesforce Apex in Emacs.
 - Imenu support for classes, methods, fields
 - Indentation support
 - Code folding
-- Completion at point (CAPF)
 
 ** Requirements
 
@@ -47,6 +46,18 @@ The core =apex-ts-mode= works independently without any Salesforce CLI integrati
 ;; .cls and .trigger files automatically use apex-ts-mode
 #+end_src
 
+** LSP Support (Eglot)
+
+Built-in eglot configuration. Requires Apex LSP JAR (download from Salesforce VSCode extension):
+
+#+begin_src emacs-lisp
+;; Set path to Apex LSP JAR
+(setq apex-ts-mode-lsp-jar-path "~/.local/lsp/apex-lsp.jar")
+
+;; Register with eglot
+(apex-ts-mode-eglot-setup)
+#+end_src
+
 ** Salesforce Integration (Optional)
 
 For full Salesforce development experience, install [[https://github.com/tan-minh-nguyen/salesforce-minor-mode][salesforce-minor-mode]] and load the extensions:
@@ -56,21 +67,21 @@ For full Salesforce development experience, install [[https://github.com/tan-min
 (require 'salesforce-mode)
 
 ;; Enable apex-ts-mode extensions
+(add-to-list 'load-path "/path/to/apex-ts-mode")
+(require 'ob-apex)       ;; Org-babel support (requires salesforce-mode)
+
 (add-to-list 'load-path "/path/to/apex-ts-mode/extensions")
-(require 'apex-ob)       ;; Org-babel support
 (require 'apex-consult)  ;; Consult navigation
 #+end_src
 
 ** Extensions
 
-| Extension | Purpose | Requires |
-|-----------+---------+----------|
-| apex-ob | Org-babel for Apex | salesforce-core |
-| apex-consult | Consult imenu sources | salesforce-core, consult |
-| apex-language-server | LSP configuration | lsp-mode or eglot |
-| apex-fold | Code folding | hideshow |
-| apex-dap | Debug adapter | dap-mode |
-| apex-gptel | AI integration | gptel |
+| Extension | Location | Purpose | Requires |
+|-----------+----------+---------+----------|
+| ob-apex | root | Org-babel for Apex | salesforce-core |
+| apex-consult | extensions/ | Consult imenu sources | salesforce-core, consult |
+| apex-fold | extensions/ | Code folding | hideshow |
+| apex-dap | extensions/ | Debug adapter (WIP) | dap-mode |
 
 ** File Associations
 

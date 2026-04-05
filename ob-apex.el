@@ -1,70 +1,20 @@
-;;; apex-ob.el --- Org-babel functions for Apex evaluation -*- lexical-binding: t -*-
+;;; ob-apex.el --- Org-babel support for Apex -*- lexical-binding: t -*-
 
-;; Copyright (C) 2025 Tan Nguyen
+;; Copyright (C) 2024-2026 Tan Nguyen
 
 ;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Maintainer: Tan Nguyen <tan.nguyen.w.information@gmail.com>
 ;; Version: 1.0.0
 ;; Package-Requires: ((emacs "29.1") (apex-ts-mode "1.0"))
-;; This file is part of apex-ts-mode extensions.
+;; Keywords: literate programming, salesforce, apex
+;; Homepage: https://github.com/tan-minh-nguyen/apex-ts-mode
 
-;; Keywords: literate programming, reproducible research, salesforce, apex
-;; Homepage: https://github.com/your/repo
-
-;;; License:
-
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
-;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
 
-;; This file provides support for executing Apex code blocks within Org-mode
-;; using org-babel. It includes functions for expanding, executing, and
-;; filtering Apex code, as well as handling variable declarations and results.
-;;
-;; Features:
-;; - Execute Apex code blocks in Org-mode
-;; - Variable binding and type inference
-;; - SOQL query integration with type-safe variables
-;; - Log filtering by type (DEBUG, EXECUTABLE, SYSTEM, GOVERNOR)
-;; - Automatic result insertion
-;;
-;; SOQL Query Integration:
-;; - Reference SOQL blocks by name using :var syntax
-;; - Generates type-safe Apex code with proper SObject types
-;; - Uses inline SOQL syntax [SELECT...] for clean code
-;;
-;; Example:
-;;   #+NAME: my-accounts
-;;   #+BEGIN_SRC soql
-;;   SELECT Id, Name, Industry FROM Account LIMIT 10
-;;   #+END_SRC
-;;
-;;   #+BEGIN_SRC apex :var accounts=my-accounts
-;;   // Generated: List<Account> accounts = [SELECT Id, Name, Industry FROM Account LIMIT 10];
-;;   for (Account acc : accounts) {
-;;       System.debug(acc.Name);  // Direct field access!
-;;       System.debug(acc.Industry);
-;;   }
-;;   #+END_SRC
-;;
-;; Requirements:
-;; - Salesforce CLI must be installed and configured
-;; - Emacs major mode for Apex should be installed
-;; - ob-soql-core.el for SOQL integration (optional)
-;;
-;; TODO: Support org session for Apex
+;; Org-babel support for executing Apex code blocks.
+;; Requires salesforce-mode: https://github.com/tan-minh-nguyen/salesforce-minor-mode
 
 ;;; Code:
 
@@ -73,9 +23,6 @@
 (require 'ob-comint)
 (require 'ob-eval)
 (require 'apex-ts-mode)
-
-;; Optional: Salesforce CLI integration
-(require 'salesforce-core nil t)
 
 ;; Optional: SOQL query variable integration
 (require 'ob-soql-core nil t)
@@ -86,14 +33,14 @@
 
 ;;; Default Header Arguments
 
-(defvar org-babel-default-header-args:apex 
+(defvar org-babel-default-header-args:apex
   '((:results . "none")
     (:org . "")
     (:filter-type . "DEBUG")
     (:filter-value . nil))
   "Default header arguments for Apex code blocks.")
 
-(defvar org-babel-default-inline-header-args:apex 
+(defvar org-babel-default-inline-header-args:apex
   '((:results . "none")
     (:org . "")
     (:filter-type . "DEBUG")
@@ -102,7 +49,7 @@
 
 ;;; Filter Keywords
 
-(defvar org-babel-executable-keywords 
+(defvar org-babel-executable-keywords
   '("VARIABLE_ASSIGNMENT"
     "STATEMENT_EXECUTE"
     "METHOD_ENTRY"
@@ -110,7 +57,7 @@
     "CODE_UNIT_STARTED")
   "Keywords used for filtering with Executable type.")
 
-(defvar org-babel-system-keywords 
+(defvar org-babel-system-keywords
   '("VARIABLE_ASSIGNMENT"
     "STATEMENT_EXECUTE"
     "METHOD_ENTRY"
@@ -118,7 +65,7 @@
     "CODE_UNIT_STARTED")
   "Keywords used for filtering with System type.")
 
-(defvar org-babel-debug-keywords 
+(defvar org-babel-debug-keywords
   '("VARIABLE_ASSIGNMENT"
     "STATEMENT_EXECUTE"
     "METHOD_ENTRY"
@@ -126,7 +73,7 @@
     "CODE_UNIT_STARTED")
   "Keywords used for filtering with Debug type.")
 
-(defvar org-babel-governor-keywords 
+(defvar org-babel-governor-keywords
   '("LIMIT_USAGE_FOR_NS"
     "Number of"
     "Maximum CPU"
@@ -181,18 +128,25 @@ generates type-safe query code. Otherwise uses standard declaration."
          (ob-soql-vars-get-query value))
       ;; It's a SOQL query - generate type-safe code
       (ob-soql-vars-to-apex-query var-name (ob-soql-vars-get-query value)))
-     
+
      ;; Standard variable - use existing logic
      (t
       (ob-apex--declare-variable pair)))))
 
 ;;; Code Execution
 
+(defun ob-apex--check-salesforce-mode ()
+  "Check that salesforce-mode is available, signal error if not."
+  (unless (featurep 'salesforce-core)
+    (user-error "ob-apex requires salesforce-mode. Install from https://github.com/tan-minh-nguyen/salesforce-minor-mode")))
+
 ;;;###autoload
 (defun org-babel-execute:apex (body params)
   "Execute a block of Apex code with org-babel.
 BODY is the content of the code block.
-PARAMS are the header arguments."
+PARAMS are the header arguments.
+Requires salesforce-mode to be installed."
+  (ob-apex--check-salesforce-mode)
   (let* ((processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:apex body params processed-params)))
     (ob-apex--execute-apex-code processed-params full-body)))
@@ -208,15 +162,15 @@ CONTENT is the code to execute."
          (org-name (ob-apex--get-param :org processed-params))
          (log-filter-type (ob-apex--get-param :filter-type processed-params))
          (log-filter-value (ob-apex--get-param :filter-value processed-params)))
-    
+
     (write-region content nil tempfile)
-    
+
     ;; Clear default result
     (org-babel-remove-result)
-    
+
     (unless (ob-apex--result-is-none-p result-eval)
       (ob-apex--insert-result-placeholder uuid))
-    
+
     (salesforce-core--apex-process
      :args `("run" "-f" ,tempfile "-o" ,org-name "--json")
      :callback
@@ -264,18 +218,18 @@ CONTENT is the code to execute."
 
 (defun ob-apex--get-filter-fn (type value)
   "Return the appropriate filter function based on TYPE and VALUE.
-The filter function checks if a line matches the specified TYPE 
+The filter function checks if a line matches the specified TYPE
 and optionally contains VALUE."
   (let ((base-filter-fn (ob-apex--get-base-filter-fn type)))
     (if (and value (not (string-empty-p value)))
-        (lambda (line) 
-          (and (funcall base-filter-fn line) 
+        (lambda (line)
+          (and (funcall base-filter-fn line)
              (string-match-p (regexp-quote value) line)))
       base-filter-fn)))
 
 (defun ob-apex--get-base-filter-fn (type)
   "Return the base filter function for TYPE."
-  (cond 
+  (cond
    ((string-equal-ignore-case type "DEBUG")
     (lambda (line) (string-match-p "DEBUG" line)))
    ((string-equal-ignore-case type "EXECUTABLE")
@@ -308,7 +262,7 @@ VALUE is the variable value."
 
 (defun ob-apex--infer-type (value)
   "Infer the type of VALUE for Apex variable declaration."
-  (cond 
+  (cond
    ((string-match-p "^'" value) "string")
    ((string-match-p "^[0-9]+\\(?:\\.[0-9]+\\)?$" value) "number")
    ((string-match-p "^\\(?:[Tt]rue\\|[Ff]alse\\)$" value) "boolean")
@@ -361,6 +315,6 @@ This function is currently a placeholder.
 TODO: Implement session initialization or remove if unused."
   (error "Sessions are not yet supported for Apex code blocks"))
 
-(provide 'apex-ob)
+(provide 'ob-apex)
 
-;;; apex-ob.el ends here
+;;; ob-apex.el ends here
