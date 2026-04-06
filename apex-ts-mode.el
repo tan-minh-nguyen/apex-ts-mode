@@ -53,8 +53,7 @@
   "Generate command to run Apex language server."
   `("java" "-cp" ,(expand-file-name apex-ts-mode-lsp-path) "apex.jorje.lsp.ApexLanguageServerLauncher"))
 
-(defun apex-ts-mode-eglot-setup ()
-  "Configure eglot for `apex-ts-mode'."
+(with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                (cons 'apex-ts-mode `(,@(apex-ts-mode--lsp-command)
                                      ,@apex-ts-mode-eglot-config))))

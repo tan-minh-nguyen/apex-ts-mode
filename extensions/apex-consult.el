@@ -17,7 +17,6 @@
 
 ;;; Code:
 
-(require 'apex-ts-mode)
 (require 'nerd-icons nil t)
 
 ;; Optional: Salesforce consult integration
