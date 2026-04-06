@@ -30,7 +30,8 @@
 ;;; Configuration
 
 (add-to-list 'org-babel-tangle-lang-exts '("apex" . "cls"))
-
+(add-to-list 'org-src-lang-modes '("apex" . apex-ts))
+(add-to-list 'org-babel-load-languages '("apex" . t))
 ;;; Default Header Arguments
 
 (defvar org-babel-default-header-args:apex

@@ -66,6 +66,16 @@
 
 (defvar font-lock-apex-error-face 'font-lock-apex-error
   "Apex error face.")
+
+(defface apex-ts-mode-object-face
+  '((t :inherit font-lock-variable-use-face :slant italic))
+  "Face for object identifiers in method invocations.
+Used for the object part in expressions like `object.method()'."
+  :group 'apex)
+
+(defvar apex-ts-mode-object-face 'apex-ts-mode-object-face
+  "Face for object identifiers.")
+
 (defvar apex-load-directory (file-name-directory load-file-name)
   "Root directory.")
 
@@ -268,7 +278,7 @@ te available version of Tree-sitter for Apex."
    :override t
    :feature 'expression
    '((method_invocation
-      object: (identifier) @font-lock-variable-use-face)
+      object: (identifier) @apex-ts-mode-object-face)
 
      (method_invocation
       name: (identifier) @font-lock-function-call-face)
@@ -553,15 +563,7 @@ This handles statements like 'return prop;' inside get/set blocks."
   `(lambda (cand) 
      (goto-char (plist-get cand :marker))))
 
-(with-eval-after-load 'tempel
-  (require 'apex-ts-mode-tempel)
-  (apex-ts-mode-tempel-initialize))
-
-(with-eval-after-load 'org
-  (add-to-list 'org-src-lang-modes '("apex" . apex-ts))
-  (add-to-list 'org-babel-load-languages '("apex" . t)))
-
-;;;###autoload (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
 
 (when (functionp 'derived-mode-add-parents)
   (derived-mode-add-parents 'apex-ts-mode '(apex-mode)))
