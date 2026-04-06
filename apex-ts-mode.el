@@ -39,7 +39,7 @@
 
 ;;; Eglot Integration
 
-(defcustom apex-ts-mode-lsp-path nil
+(defcustom apex-ts-mode-lsp-jar nil
   "Path to Apex LSP JAR file."
   :type 'string
   :group 'apex)
@@ -49,14 +49,12 @@
   :type 'list
   :group 'apex)
 
-(defun apex-ts-mode--lsp-command ()
-  "Generate command to run Apex language server."
-  `("java" "-cp" ,(expand-file-name apex-ts-mode-lsp-path) "apex.jorje.lsp.ApexLanguageServerLauncher"))
-
 (with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               (cons 'apex-ts-mode `(,@(apex-ts-mode--lsp-command)
-                                     ,@apex-ts-mode-eglot-config))))
+  (push (cons 'apex-ts-mode
+              (lambda (&rest _)
+                `(,@(list "java" "-cp" (expand-file-name apex-ts-mode-lsp-jar) "apex.jorje.lsp.ApexLanguageServerLauncher")
+                  ,@apex-ts-mode-eglot-config)))
+        eglot-server-programs))
 
 ;; Settings custom faces for `apex-ts-mode'
 (defface font-lock-apex-error
