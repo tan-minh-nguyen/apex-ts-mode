@@ -21,40 +21,74 @@
 
 ;;; Code:
 
-(defcustom apex-dap-replay-debugger-server nil
+(defcustom apex-dap-replay-debugger-server (expand-file-name "~/projects/salesforcedx-vscode/packages/salesforcedx-apex-replay-debugger/out/src/adapter/apexReplayDebug.js")
   "Path to replay debugger server for Apex mode."
   :type 'string
   :group 'apex-dap)
 
-(defvar-local apex-dap-log-file nil
-  "Path to log file.")
+(defun apex-dap--project-root ()
+  "Get project root, preferring `salesforce-project-root-dir'."
+  (project-root (project-current)))
 
-(defvar-local apex-dap-workspace nil
-  "Path to workspace directory for replay debug.")
+(defun apex-dap--project-classes ()
+  "Get all Apex classes in the current project as a hash table."
+  (let* ((class-directory (salesforce-project-metadata-path salesforce-project-session 'class))
+         (apex-classes (directory-files-recursively class-directory "\\.cls$")))
+    (cl-loop with class-table = (make-hash-table :test #'equal)
+             for file in apex-classes
+             as typeref = (file-name-sans-extension (file-name-nondirectory file))
+             do (puthash file
+                         (list :uri (concat "file://" file)
+                            :typeref typeref
+                            :lines [])
+                         class-table)
+             finally return class-table)))
 
-;;;###autoload
-(defun apex-dap-start-replay-debugger ()
-  "Start Replay Debugger for Apex mode."
-  (interactive)
-  (unless (featurep 'dape)
-    (user-error "apex-dap requires dape package"))
-  (setq-local apex-dap-log-file (read-file-name "File:")
-              apex-dap-workspace (projectile-project-root))
-  (call-interactively #'dape))
+(defun apex-dap-line-breakpoints ()
+  "Get line breakpoint info for Apex debug adapter.
+Returns a vector of plists with :uri, :typeref, and :lines properties.
+Includes all project classes for source mapping, plus breakpoint lines."
+  (cl-loop with class-table = (apex-dap--project-classes)
+           for breakpoint in dape--breakpoints
+           as file = (dape--breakpoint-file-name breakpoint)
+           as line = (dape--breakpoint-line breakpoint)
+           as entry = (gethash file class-table)
+           when entry
+           do (plist-put entry :lines (vconcat (plist-get entry :lines) `[,line]))
+           finally return (apply #'vector (hash-table-values class-table))))
+
+(defun apex-dap-get-file-log (config)
+  "Function to prompt for log file and inject content into CONFIG."
+  (let* ((server-path (expand-file-name apex-dap-replay-debugger-server))
+         ;;TODO: use default for of log
+         (log-file (read-file-name "Log file: "))
+         (log-content
+          (with-temp-buffer
+            (insert-file-contents log-file)
+            (buffer-string))))
+
+    (plist-put config 'command-args (list server-path "--stdout"))
+    (plist-put config :logFileContents log-content)
+    (plist-put config :logFilePath (expand-file-name log-file))
+    (plist-put config :logFileName (file-name-nondirectory log-file))
+    (plist-put config :projectPath (apex-dap--project-root))
+    (plist-put config :env (list :SFDX_DEFAULTUSERNAME
+                              (salesforce-project-org salesforce-project-session)
+                              :SF_TARGET_ORG
+                              (salesforce-project-org salesforce-project-session)))
+    (plist-put config :lineBreakpointInfo (apex-dap-line-breakpoints))
+    config))
 
 ;; Configuration replay-debugger for Apex mode
-(defun apex-dap-initialize ()
-  "Initialize Apex Replay Debugger server."
-  (unless apex-ts-dap-replay-debugger-server
-    (error "Please set apex-ts-dap-replay-debugger-server to apex debug adapter."))
+(with-eval-after-load 'dape
+  (require 'salesforce-core nil :no-error)
   (add-to-list 'dape-configs
                `(apex-replay modes (apex-ts-mode)
                              command "node"
-                             command-args `(,(expand-file-name apex-ts-dap-replay-debugger-server) "--stdout")
+                             command-args nil
+                             fn apex-dap-get-file-log
                              :type "apex-replay"
                              :request "launch"
-                             :logFile apex-dap-log-file
-                             :projectPath apex-dap-workspace
                              :stopOnEntry t
                              :trace t
                              :languages ["apex"]
