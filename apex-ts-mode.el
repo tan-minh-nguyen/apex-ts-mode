@@ -52,7 +52,7 @@
 (with-eval-after-load 'eglot
   (push (cons 'apex-ts-mode
               (lambda (&rest _)
-                `(,@(list "java" "-cp" (expand-file-name apex-ts-mode-lsp-jar) "apex.jorje.lsp.ApexLanguageServerLauncher")
+                `("java" "-cp" ,(expand-file-name apex-ts-mode-lsp-jar) "apex.jorje.lsp.ApexLanguageServerLauncher"
                   ,@apex-ts-mode-eglot-config)))
         eglot-server-programs))
 
@@ -545,25 +545,22 @@ This handles statements like 'return prop;' inside get/set blocks."
 
   (apex-ts-mode-setup))
 
+(add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
+
 ;; Imenu
 (defmacro apex-ts-mode--define-source-annotate (&optional text)
   "Define annotate for consult source."
   `(lambda (cand)
      (let* (;; Return type display
             (type-text (propertize (or (plist-get cand :type)
-                                       "Void")
+                                      "Void")
                                    'face 'font-lock-type-face)))
        type-text)))
 
 (defmacro apex-ts-mode--define-source-action ()
   "Define action for consult source."
-  `(lambda (cand) 
+  `(lambda (cand)
      (goto-char (plist-get cand :marker))))
-
-(add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
-
-(when (functionp 'derived-mode-add-parents)
-  (derived-mode-add-parents 'apex-ts-mode '(apex-mode)))
 
 (provide 'apex-ts-mode)
 ;;; apex-ts-mode.el ends here

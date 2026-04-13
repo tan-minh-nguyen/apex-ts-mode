@@ -4,8 +4,7 @@
 
 ;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
 ;; Version: 1.0.0
-;; Package-Requires: ((emacs "29.1") (apex-ts-mode "1.0") (consult "0.35") (nerd-icons "0.1.0"))
-;; This file is part of apex-ts-mode extensions.
+;; Package-Requires: ((emacs "29.1") (apex-ts-mode "1.0") (consult "0.35") (marginalia "1.0") (nerd-icons "0.1.0"))
 
 ;; Keywords: salesforce, apex, consult
 ;; URL: https://github.com/tan-minh-nguyen/apex-ts-mode
@@ -17,115 +16,85 @@
 
 ;;; Code:
 
-(require 'nerd-icons nil t)
-
-;; Optional: Salesforce consult integration
-(require 'salesforce-core nil t)
+(require 'cl-lib)
+(require 'consult)
+(require 'marginalia)
+(require 'nerd-icons)
+(require 'treesit)
 
 (defgroup apex-consult nil
   "Consult integration for Apex mode."
   :group 'apex
   :prefix "apex-consult-")
 
-(defcustom apex-consult-icon-field
-  (when (fboundp 'nerd-icons-codicon)
-    (nerd-icons-codicon "nf-cod-symbol_variable"))
-  "Nerd icon for field consult source."
-  :group 'apex-consult
-  :type '(choice string null))
+(defcustom apex-consult-icon-alist
+  '(("Class" . "nf-cod-symbol_class")
+    ("Method" . "nf-cod-symbol_method")
+    ("Field" . "nf-cod-symbol_field")
+    ("Enum" . "nf-cod-symbol_enum")
+    ("Property" . "nf-cod-symbol_property")
+    ("Interface" . "nf-cod-symbol_interface")
+    ("Sobject" . "nf-cod-database"))
+  "Alist mapping imenu category names to nerd-icons codicon names."
+  :type '(alist :key-type string :value-type string)
+  :group 'apex-consult)
 
-(defcustom apex-consult-icon-method
-  (when (fboundp 'nerd-icons-codicon)
-    (nerd-icons-codicon "nf-cod-symbol_method"))
-  "Nerd icon for method consult source."
-  :group 'apex-consult
-  :type '(choice string null))
+(defun apex-consult--get-icon (name)
+  "Get nerd-icon for category NAME."
+  (when-let* ((icon-name (cdr (assoc name apex-consult-icon-alist))))
+    (nerd-icons-codicon icon-name)))
 
-(defcustom apex-consult-icon-class
-  (when (fboundp 'nerd-icons-codicon)
-    (nerd-icons-codicon "nf-cod-symbol_method"))
-  "Nerd icon for class consult source."
-  :group 'apex-consult
-  :type '(choice string null))
+(defun apex-consult--make-annotate (name)
+  "Create annotate function for category NAME."
+  (lambda (_cand)
+    (marginalia--fields
+     ((propertize (concat "@" name) 'face 'marginalia-type)))))
 
-(defcustom apex-consult-icon-sobject
-  (when (fboundp 'nerd-icons-codicon)
-    (nerd-icons-codicon "nf-cod-symbol_field"))
-  "Nerd icon for sobject consult source."
-  :group 'apex-consult
-  :type '(choice string null))
+(defun apex-consult--imenu-state ()
+  "Handle imenu state for consult preview."
+  (let ((preview (consult--jump-preview)))
+    (lambda (action cand)
+      (pcase-let ((`(,_ . ,marker) cand))
+        (funcall preview action marker)))))
 
-(defcustom apex-consult-icon-enum
-  (when (fboundp 'nerd-icons-codicon)
-    (nerd-icons-codicon "nf-cod-symbol_enum"))
-  "Nerd icon for enum consult source."
-  :group 'apex-consult
-  :type '(choice string null))
+(cl-defun apex-consult--imenu-candidates (regexp &key pred name-fn)
+  "Search candidates with tree-sitter REGEXP in the buffer.
+PRED and NAME-FN are passed to `treesit--simple-imenu-1'."
+  (declare (indent 1))
+  (when-let* ((tree (treesit-induce-sparse-tree
+                     (treesit-buffer-root-node) regexp)))
+    (treesit--simple-imenu-1 tree pred name-fn)))
 
-;; Salesforce consult integration (requires salesforce-minor-mode)
-(when (featurep 'salesforce-core)
-  (salesforce-consult--define-source "apex" :name "Field"
-    :narrow ?p
-    :category 'Field
-    :face 'font-lock-variable-name-face
-    :action salesforce-consult--imenu-action
-    :state salesforce-consult--imenu-state
-    :annotate salesforce-consult--imenu-annotate
-    :items
-    (lambda ()
-      (salesforce-consult--search-candidates "p" "\\`field_declaration\\'" apex-consult-icon-field nil #'apex-ts-mode--variable-name)))
+(defun apex-consult--convert-imenu (imenu-source)
+  "Convert IMENU-SOURCE to consult source."
+  (pcase-let* ((`(,name ,regexp ,pred ,name-fn) imenu-source)
+               (narrow-char (aref name 0))
+               (icon (apex-consult--get-icon name))
+               (display-name (if icon (concat icon " " name) name)))
 
-  (salesforce-consult--define-source "apex" :name "Method"
-    :narrow ?f
-    :category 'Method
-    :face 'font-lock-function-name-face
-    :action salesforce-consult--imenu-action
-    :state salesforce-consult--imenu-state
-    :annotate salesforce-consult--imenu-annotate
-    :items
-    (lambda ()
-      (salesforce-consult--search-candidates "f" "\\`method_declaration\\'" apex-consult-icon-method nil #'apex-ts-mode--method-name)))
+    (list :name display-name
+          :narrow narrow-char
+          :category (intern name)
+          :face 'font-lock-variable-name-face
+          :action (pcase-lambda (`(,_node . ,marker))
+                    (goto-char marker))
+          :state #'apex-consult--imenu-state
+          :annotate (apex-consult--make-annotate name)
+          :items (lambda ()
+                   (mapcar (pcase-lambda (`(,text . ,marker))
+                             (cons (concat (or icon "") " " text) marker))
+                           (apex-consult--imenu-candidates regexp
+                             :pred pred
+                             :name-fn name-fn))))))
 
-  (salesforce-consult--define-source "apex" :name "Class"
-    :narrow ?c
-    :category 'Class
-    :face 'font-lock-type-face
-    :action salesforce-consult--imenu-action
-    :state salesforce-consult--imenu-state
-    :annotate salesforce-consult--imenu-annotate
-    :items
-    (lambda ()
-      (salesforce-consult--search-candidates "c" "\\`class_declaration\\'" apex-consult-icon-class nil #'apex-ts-mode--declaration-name)))
-
-  (salesforce-consult--define-source "apex" :name "Sobject"
-    :narrow ?s
-    :category 'SObject
-    :face 'font-lock-type-face
-    :action salesforce-consult--imenu-action
-    :state salesforce-consult--imenu-state
-    :annotate salesforce-consult--imenu-annotate
-    :items
-    (lambda ()
-      (salesforce-consult--search-candidates "o" "\\`storage_identifier\\'" apex-consult-icon-sobject nil #'(lambda (NODE)
-                                                                                                              (treesit-node-text NODE)))))
-
-  (salesforce-consult--define-source "apex" :name "Enum"
-    :narrow ?e
-    :category 'Enum
-    :face 'font-lock-constant-face
-    :action salesforce-consult--imenu-action
-    :state salesforce-consult--imenu-state
-    :annotate salesforce-consult--imenu-annotate
-    :items
-    (lambda ()
-      (salesforce-consult--search-candidates "c" "\\`enum_declaration\\'" apex-consult-icon-field nil #'apex-ts-mode--enum-name)))
-
-  (salesforce-consult-make-multi-imenu "apex"
-                                       apex--consult-field-source
-                                       apex--consult-method-source
-                                       apex--consult-class-source
-                                       apex--consult-sobject-source
-                                       apex--consult-enum-source))
+;;;###autoload
+(defun apex-consult-imenu ()
+  "Build consult search from imenu."
+  (interactive)
+  (consult--multi
+   (mapcar #'apex-consult--convert-imenu treesit-simple-imenu-settings)
+   :prompt "@"
+   :require-match t))
 
 (provide 'apex-consult)
 

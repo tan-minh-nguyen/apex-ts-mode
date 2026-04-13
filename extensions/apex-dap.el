@@ -21,7 +21,7 @@
 
 ;;; Code:
 
-(defcustom apex-dap-replay-debugger-server (expand-file-name "~/projects/salesforcedx-vscode/packages/salesforcedx-apex-replay-debugger/out/src/adapter/apexReplayDebug.js")
+(defcustom apex-dap-replay-debugger-server nil
   "Path to replay debugger server for Apex mode."
   :type 'string
   :group 'apex-dap)
