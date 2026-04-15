@@ -401,12 +401,12 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
-                                  "array_initializer"
-                                  "constructor_body"
-                                  "interface_body"
-                                  "enum_body"
-                                  "switch_block"
-                                  "block")))
+                                 "array_initializer"
+                                 "constructor_body"
+                                 "interface_body"
+                                 "enum_body"
+                                 "switch_block"
+                                 "block")))
                 (close-bracket . "}")
                 (if . "if_statement")
                 (else . ("if_statement" . "alternative"))
@@ -445,9 +445,7 @@ Return nil if there is no name or if NODE is not a defun node."
                 ("Interface" "\\`interface_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Enum" "\\`enum_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Method" "\\`method_declaration\\'" nil nil)
-                ("Field" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)
-                ("Sobject" "\\`storage_identifier\\'" nil (lambda (NODE)
-                                                            (treesit-node-text NODE)))))
+                ("Field" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)))
   (treesit-major-mode-setup))
 
 (defun apex-ts-statement-offset (node parent &rest args)

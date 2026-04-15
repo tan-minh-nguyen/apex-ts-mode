@@ -33,8 +33,7 @@
     ("Field" . "nf-cod-symbol_field")
     ("Enum" . "nf-cod-symbol_enum")
     ("Property" . "nf-cod-symbol_property")
-    ("Interface" . "nf-cod-symbol_interface")
-    ("Sobject" . "nf-cod-database"))
+    ("Interface" . "nf-cod-symbol_interface"))
   "Alist mapping imenu category names to nerd-icons codicon names."
   :type '(alist :key-type string :value-type string)
   :group 'apex-consult)
@@ -73,19 +72,19 @@ PRED and NAME-FN are passed to `treesit--simple-imenu-1'."
                (display-name (if icon (concat icon " " name) name)))
 
     (list :name display-name
-          :narrow narrow-char
-          :category (intern name)
-          :face 'font-lock-variable-name-face
-          :action (pcase-lambda (`(,_node . ,marker))
-                    (goto-char marker))
-          :state #'apex-consult--imenu-state
-          :annotate (apex-consult--make-annotate name)
-          :items (lambda ()
-                   (mapcar (pcase-lambda (`(,text . ,marker))
-                             (cons (concat (or icon "") " " text) marker))
-                           (apex-consult--imenu-candidates regexp
-                             :pred pred
-                             :name-fn name-fn))))))
+       :narrow narrow-char
+       :category (intern name)
+       :face 'font-lock-variable-name-face
+       :action (lambda (marker)
+                 (goto-char marker))
+       :state #'apex-consult--imenu-state
+       :annotate (apex-consult--make-annotate name)
+       :items (lambda ()
+                (mapcar (pcase-lambda (`(,text . ,marker))
+                          (cons (concat (or icon "") " " text) marker))
+                        (apex-consult--imenu-candidates regexp
+                          :pred pred
+                          :name-fn name-fn))))))
 
 ;;;###autoload
 (defun apex-consult-imenu ()
