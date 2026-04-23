@@ -444,7 +444,7 @@ Return nil if there is no name or if NODE is not a defun node."
               '(("Class" "\\`class_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Interface" "\\`interface_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Enum" "\\`enum_declaration\\'" nil apex-ts-mode--declaration-name)
-                ("Method" "\\`method_declaration\\'" nil nil)
+                ("Method" "\\`method_declaration\\'" nil apex-ts-mode--method-name)
                 ("Field" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)))
   (treesit-major-mode-setup))
 
