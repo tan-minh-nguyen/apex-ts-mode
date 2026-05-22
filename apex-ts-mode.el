@@ -37,25 +37,6 @@
   :safe 'integerp
   :group 'apex)
 
-;;; Eglot Integration
-
-(defcustom apex-ts-mode-lsp-jar nil
-  "Path to Apex LSP JAR file."
-  :type 'string
-  :group 'apex)
-
-(defcustom apex-ts-mode-eglot-config '(:initializationOptions (:enableEmbeddedSoqlCompletion t))
-  "Eglot initialization options for Apex LSP."
-  :type 'list
-  :group 'apex)
-
-(with-eval-after-load 'eglot
-  (push (cons 'apex-ts-mode
-              (lambda (&rest _)
-                `("java" "-cp" ,(expand-file-name apex-ts-mode-lsp-jar) "apex.jorje.lsp.ApexLanguageServerLauncher"
-                  ,@apex-ts-mode-eglot-config)))
-        eglot-server-programs))
-
 ;; Settings custom faces for `apex-ts-mode'
 (defface font-lock-apex-error
   '((t :foreground "red" :underline t))
