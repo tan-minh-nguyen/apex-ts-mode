@@ -57,11 +57,18 @@ Includes all project classes for source mapping, plus breakpoint lines."
            do (plist-put entry :lines (vconcat (plist-get entry :lines) `[,line]))
            finally return (apply #'vector (hash-table-values class-table))))
 
-(defun apex-dap-get-file-log (config)
+(defun apex-dap-read-log-file ()
+  "Read log file in salesforce project."
+  (read-file-name
+   "Log file: "
+   (salesforce-project-log-dir salesforce-project-session)
+   "\\.log$"))
+
+(defun apex-dap-get-log-file (config)
   "Function to prompt for log file and inject content into CONFIG."
   (let* ((server-path (expand-file-name apex-dap-replay-debugger-server))
          ;;TODO: use default for of log
-         (log-file (read-file-name "Log file: "))
+         (log-file (apex-dap-read-log-file))
          (log-content
           (with-temp-buffer
             (insert-file-contents log-file)
@@ -73,9 +80,9 @@ Includes all project classes for source mapping, plus breakpoint lines."
     (plist-put config :logFileName (file-name-nondirectory log-file))
     (plist-put config :projectPath (apex-dap--project-root))
     (plist-put config :env (list :SFDX_DEFAULTUSERNAME
-                              (salesforce-project-org salesforce-project-session)
-                              :SF_TARGET_ORG
-                              (salesforce-project-org salesforce-project-session)))
+                                 (salesforce-project-org salesforce-project-session)
+                                 :SF_TARGET_ORG
+                                 (salesforce-project-org salesforce-project-session)))
     (plist-put config :lineBreakpointInfo (apex-dap-line-breakpoints))
     config))
 
@@ -86,7 +93,7 @@ Includes all project classes for source mapping, plus breakpoint lines."
                `(apex-replay modes (apex-ts-mode)
                              command "node"
                              command-args nil
-                             fn apex-dap-get-file-log
+                             fn apex-dap-get-log-file
                              :type "apex-replay"
                              :request "launch"
                              :stopOnEntry t

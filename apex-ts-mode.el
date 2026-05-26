@@ -401,12 +401,12 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
-                                 "array_initializer"
-                                 "constructor_body"
-                                 "interface_body"
-                                 "enum_body"
-                                 "switch_block"
-                                 "block")))
+                                  "array_initializer"
+                                  "constructor_body"
+                                  "interface_body"
+                                  "enum_body"
+                                  "switch_block"
+                                  "block")))
                 (close-bracket . "}")
                 (if . "if_statement")
                 (else . ("if_statement" . "alternative"))
