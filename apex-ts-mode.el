@@ -543,6 +543,7 @@ This handles statements like 'return prop;' inside get/set blocks."
 
   (apex-ts-mode-setup))
 
+;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
 
 ;; Imenu
