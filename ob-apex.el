@@ -27,6 +27,20 @@
 ;; Optional: SOQL query variable integration
 (require 'ob-soql-core nil t)
 
+;;; Queue and Timer Infrastructure
+
+(defvar-local ob-apex--queue-jobs nil
+  "Queue of pending Apex job IDs waiting for execution.")
+
+(defvar-local ob-apex-timer nil
+  "Timer for batched Apex job execution.")
+
+(defcustom ob-apex-throttle 1
+  "Seconds to wait before running queued Apex jobs.
+Multiple source blocks evaluated within this window are batched together."
+  :type 'number
+  :group 'ob-apex)
+
 ;;; Configuration
 
 (add-to-list 'org-babel-tangle-lang-exts '("apex" . "cls"))
@@ -124,9 +138,9 @@ generates type-safe query code. Otherwise uses standard declaration."
     (cond
      ;; Check if ob-soql-core loaded and value is SOQL query name
      ((and (featurep 'ob-soql-core)
-         (stringp value)
-         (fboundp 'ob-soql-vars-get-query)
-         (ob-soql-vars-get-query value))
+           (stringp value)
+           (fboundp 'ob-soql-vars-get-query)
+           (ob-soql-vars-get-query value))
       ;; It's a SOQL query - generate type-safe code
       (ob-soql-vars-to-apex-query var-name (ob-soql-vars-get-query value)))
 
@@ -141,51 +155,73 @@ generates type-safe query code. Otherwise uses standard declaration."
   (unless (featurep 'salesforce-core)
     (user-error "ob-apex requires salesforce-mode. Install from https://github.com/tan-minh-nguyen/salesforce-minor-mode")))
 
-;;;###autoload
+(defun ob-apex--parser-json (proc)
+  "Return a parser function for Apex process output.
+The returned function takes a process PROC and returns the filtered log string,
+or nil if RESULT-EVAL is \"none\" (display suppressed by caller)."
+  (let* ((json (salesforce-core--parse-json proc)))
+    (map-nested-elt json '("result" "logs"))))
+
+(cl-defun ob-apex-execute:src (body processed-params)
+  "Create a pipeline job for Apex execution.
+Returns the job-id used as both the queue key and the #+RESULTS: placeholder.
+BODY is the unexpanded Apex code; PROCESSED-PARAMS are org-babel params."
+  (let* ((org-name (ob-apex--get-param :org processed-params))
+         (result-eval (ob-apex--get-param :results processed-params))
+         (filter-type (ob-apex--get-param :filter-type processed-params))
+         (filter-value (ob-apex--get-param :filter-value processed-params)))
+    
+    (emacs-pp-job
+     :ready-p nil
+     (lambda ()
+       (let ((full-body (org-babel-expand-body:apex body processed-params))
+             (tempfile (make-temp-file "temp-apex")))
+         (prog1 tempfile
+           (write-region full-body nil tempfile))))
+
+     (lambda (tempfile)
+       (salesforce-core--apex-process
+        :args `("run" "-f" ,tempfile "-o" ,org-name "--json")
+        :parser #'ob-apex--parser-json
+        :catch #'salesforce-core--handle-process-error))
+     (lambda (log-content)
+       (unless (ob-apex--result-is-none-p result-eval)
+         (ob-apex--filter-log log-content filter-type filter-value))))))
+
 (defun org-babel-execute:apex (body params)
   "Execute a block of Apex code with org-babel.
 BODY is the content of the code block.
 PARAMS are the header arguments.
 Requires salesforce-mode to be installed."
   (ob-apex--check-salesforce-mode)
-  (let* ((processed-params (org-babel-process-params params))
-         (full-body (org-babel-expand-body:apex body params processed-params)))
-    (ob-apex--execute-apex-code processed-params full-body)))
-
-(defun ob-apex--execute-apex-code (processed-params content)
-  "Execute Apex code in Org source.
-PROCESSED-PARAMS are the parameters for execution.
-CONTENT is the code to execute."
-  (let* ((uuid (org-id-uuid))
-         (buffer (current-buffer))
-         (tempfile (make-temp-file "temp-code"))
+  (when (timerp ob-apex-timer)
+    (cancel-timer ob-apex-timer))
+  (let* ((buffer (current-buffer))
+         (processed-params (org-babel-process-params params))
          (result-eval (ob-apex--get-param :results processed-params))
-         (org-name (ob-apex--get-param :org processed-params))
-         (log-filter-type (ob-apex--get-param :filter-type processed-params))
-         (log-filter-value (ob-apex--get-param :filter-value processed-params)))
+         (job-id (ob-apex-execute:src body processed-params))
+         (run-seq-jobs
+          (lambda (jobs)
+            (apply #'emacs-pp-jobs-sequence
+                   :complete
+                   (lambda (job-results)
+                     (let ((log-string (gethash job-id job-results)))
+                       (with-current-buffer buffer
+                         (setq-local ob-apex--queue-jobs nil)
+                         (cancel-timer ob-apex-timer))
+                       (when log-string
+                         (ob-apex--display-result job-id
+                           :content log-string))
+                       (alert "Run apex code complete"
+                              :title "Salesforce Alert")))
+                   jobs))))
 
-    (write-region content nil tempfile)
-
-    ;; Clear default result
-    (org-babel-remove-result)
-
-    (unless (ob-apex--result-is-none-p result-eval)
-      (ob-apex--insert-result-placeholder uuid))
-
-    (salesforce-core--apex-process
-     :args `("run" "-f" ,tempfile "-o" ,org-name "--json")
-     :callback
-     (lambda (json-instance)
-       (unless (ob-apex--result-is-none-p result-eval)
-         (with-current-buffer buffer
-           (save-excursion
-             (ob-apex--replace-result-placeholder
-              uuid
-              (ob-apex--filter-log (map-nested-elt json-instance '("result" "logs"))
-                                   log-filter-type
-                                   log-filter-value)))))
-       (alert "Run apex code complete"
-              :title "Salesforce Alert")))))
+    (prog1 (unless (ob-apex--result-is-none-p result-eval) job-id)
+      (push job-id ob-apex--queue-jobs)
+      (setq-local ob-apex-timer
+                  (run-with-timer ob-apex-throttle nil
+                                  run-seq-jobs
+                                  (reverse ob-apex--queue-jobs))))))
 
 ;;; Result Handling
 
@@ -193,18 +229,13 @@ CONTENT is the code to execute."
   "Check if RESULT-TYPE indicates no results should be displayed."
   (string-equal-ignore-case result-type "none"))
 
-(defun ob-apex--insert-result-placeholder (uuid)
-  "Insert a result placeholder with UUID at point."
-  (re-search-forward "#\\+end_src")
-  (insert (format "\n#+RESULTS:\n#+begin_src apex-log :uuid %s\n %s\n#+end_src"
-                  uuid uuid)))
-
-(defun ob-apex--replace-result-placeholder (uuid content)
-  "Replace the result placeholder identified by UUID with CONTENT."
-  (goto-char (point-min))
-  (when (re-search-forward uuid nil t 2)
-    (delete-line)
-    (insert content)))
+(cl-defun ob-apex--display-result (job-id &key content (buffer (current-buffer)))
+  "In BUFFER, replace the JOB-ID placeholder with CONTENT (filtered log string)."
+  (declare (indent 1))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (save-excursion
+        (replace-string job-id content nil (point-min) (point-max) t)))))
 
 ;;; Log Filtering
 
