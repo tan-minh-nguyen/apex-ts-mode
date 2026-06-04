@@ -49,14 +49,14 @@ Multiple source blocks evaluated within this window are batched together."
 ;;; Default Header Arguments
 
 (defvar org-babel-default-header-args:apex
-  '((:results . "none")
+  '((:results . "replace")
     (:org . "")
     (:filter-type . "DEBUG")
     (:filter-value . nil))
   "Default header arguments for Apex code blocks.")
 
 (defvar org-babel-default-inline-header-args:apex
-  '((:results . "none")
+  '((:results . "replace")
     (:org . "")
     (:filter-type . "DEBUG")
     (:filter-value . nil))
@@ -182,11 +182,11 @@ BODY is the unexpanded Apex code; PROCESSED-PARAMS are org-babel params."
      (lambda (tempfile)
        (salesforce-core--apex-process
         :args `("run" "-f" ,tempfile "-o" ,org-name "--json")
-        :parser #'ob-apex--parser-json
-        :catch #'salesforce-core--handle-process-error))
+        :parser #'ob-apex--parser-json))
      (lambda (log-content)
        (unless (ob-apex--result-is-none-p result-eval)
-         (ob-apex--filter-log log-content filter-type filter-value))))))
+         (ob-apex--filter-log log-content filter-type filter-value)))
+     :catch #'salesforce-core--handle-process-error)))
 
 (defun org-babel-execute:apex (body params)
   "Execute a block of Apex code with org-babel.
@@ -212,7 +212,7 @@ Requires salesforce-mode to be installed."
                        (when log-string
                          (ob-apex--display-result job-id
                            :content log-string))
-                       (alert "Run apex code complete"
+                       (alert "Apex code executed"
                               :title "Salesforce Alert")))
                    jobs))))
 
