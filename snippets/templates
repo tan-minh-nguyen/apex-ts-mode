@@ -86,6 +86,11 @@ apex-mode
      "System.debug(e.getMessage() + '\\n' + e.getStackTraceString());" n
      "}")
 
+org-mode
+(src_apex "#+begin_src :org" (p "Org: " org) n>
+          r> n
+          "#+end_src")
+
 ;; Local Variables:
 ;; mode: lisp-data
 ;; outline-regexp: "[a-z]"
